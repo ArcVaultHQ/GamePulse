@@ -1,0 +1,376 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<!-- ──────── هدر بالا ──────── -->
+<header class="top-header">
+    <div class="header-right">
+        <h1 class="page-title">🎮 GamePulse</h1>
+        <div class="live-indicator">
+            <span class="live-dot"></span>
+            <span class="live-text">LIVE</span>
+            <span class="live-timer" id="liveTimer">—</span>
+        </div>
+    </div>
+    <div class="header-left">
+        <span class="header-date" id="currentDate"></span>
+        <div class="search-box">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="جستجو...">
+        </div>
+    </div>
+</header>
+
+<!-- ──────── نوار خبر جدید ──────── -->
+<div class="new-articles-bar" id="newArticlesBar" style="display:none;">
+    <span>⚡</span>
+    <span id="newArticlesText"></span>
+    <button onclick="refreshAndDismiss()" class="new-articles-btn">نمایش</button>
+    <button onclick="dismissNewBar()" class="new-articles-dismiss">✕</button>
+</div>
+
+<!-- ──────── اخبار فوری ──────── -->
+<div class="urgent-bar" id="urgentBar" style="display:none;">
+    <span class="urgent-title">🔴 فوری</span>
+    <div class="urgent-list" id="urgentList"></div>
+</div>
+
+<!-- ──────── کارت‌های آمار ──────── -->
+<section class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#667eea,#764ba2)">
+            <i class="fas fa-newspaper"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-number" id="statToday">—</span>
+            <span class="stat-label">خبر امروز</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#f093fb,#f5576c)">
+            <i class="fas fa-database"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-number" id="statTotal">—</span>
+            <span class="stat-label">کل اخبار</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#4facfe,#00f2fe)">
+            <i class="fas fa-satellite-dish"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-number" id="statSources">—</span>
+            <span class="stat-label">منبع فعال</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#43e97b,#38f9d7)">
+            <i class="fas fa-bookmark"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-number" id="statBookmarked">—</span>
+            <span class="stat-label">ذخیره شده</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#fa709a,#fee140)">
+            <i class="fas fa-film"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-number" id="statVideos">—</span>
+            <span class="stat-label">ویدیو</span>
+        </div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon" style="background:linear-gradient(135deg,#e74c3c,#c0392b)">
+            <i class="fas fa-fire"></i>
+        </div>
+        <div class="stat-info">
+            <span class="stat-number" id="statUrgent">—</span>
+            <span class="stat-label">خبر داغ</span>
+        </div>
+    </div>
+</section>
+
+<!-- ──────── ترندینگ بازی‌ها ──────── -->
+<section class="trending-section" id="trendingSection" style="display:none;">
+    <div class="section-title">
+        🔥 بازی‌های پرخبر
+        <span class="last-update-text" id="lastUpdateText"></span>
+    </div>
+    <div class="trending-games" id="trendingGames"></div>
+</section>
+
+<!-- ──────── فیلترها ──────── -->
+<section class="filters-bar" id="filtersBar">
+    <div class="filter-row">
+        <button class="platform-btn active" data-platform="all">🌍 همه</button>
+        <button class="platform-btn ps" data-platform="PlayStation">🎮 PS</button>
+        <button class="platform-btn xbox" data-platform="Xbox">🟩 Xbox</button>
+        <button class="platform-btn nintendo" data-platform="Nintendo">🔴 Nintendo</button>
+        <button class="platform-btn pc" data-platform="PC">🖥️ PC</button>
+        <button class="platform-btn mobile" data-platform="Mobile">📱 Mobile</button>
+        <button class="platform-btn general" data-platform="General">🌐 عمومی</button>
+    </div>
+    <div class="filter-row">
+        <button class="time-btn" data-time="1h">۱ ساعت</button>
+        <button class="time-btn active" data-time="24h">۲۴ ساعت</button>
+        <button class="time-btn" data-time="7d">۷ روز</button>
+        <button class="time-btn" data-time="all">همه</button>
+        <span class="filter-divider">|</span>
+        <button class="type-btn active" data-type="all">همه</button>
+        <button class="type-btn" data-type="news">📰 خبر</button>
+        <button class="type-btn" data-type="review">⭐ بررسی</button>
+        <button class="type-btn" data-type="preview">👁️ پیش‌نمایش</button>
+        <button class="type-btn" data-type="analysis">📊 تحلیل</button>
+        <button class="type-btn" data-type="deal">💰 تخفیف</button>
+        <span class="filter-divider">|</span>
+        <button class="urgency-btn active" data-urgency="all">همه</button>
+        <button class="urgency-btn high" data-urgency="high">🔴 فوری</button>
+        <button class="urgency-btn medium" data-urgency="medium">🟡 مهم</button>
+        <button class="urgency-btn normal" data-urgency="normal">🟢 عادی</button>
+    </div>
+</section>
+
+<!-- ──────── محتوای بخش‌ها ──────── -->
+<div id="sectionContent">
+
+    <!-- اخبار -->
+    <section class="news-grid" id="newsGrid">
+        <div class="loading-state">
+            <div class="spinner"></div>
+            <p>در حال دریافت اخبار...</p>
+        </div>
+    </section>
+
+    <div class="load-more-wrapper" id="loadMoreWrapper" style="display:none;">
+        <button class="load-more-btn" id="loadMoreBtn">
+            <i class="fas fa-arrow-down"></i> بیشتر
+        </button>
+    </div>
+
+    <!-- ترندز (پنهان) -->
+    <section id="trendsSection" style="display:none;">
+        <div class="trends-grid">
+
+            <!-- ترندیاب داخلی -->
+            <div class="trends-card">
+                <div class="trends-card-title">
+                    <i class="fas fa-fire"></i> ترندیاب داخلی GamePulse
+                </div>
+                <div id="internalTrends">
+                    <div class="loading-small">در حال تحلیل...</div>
+                </div>
+            </div>
+
+            <!-- Google Trends -->
+            <div class="trends-card">
+                <div class="trends-card-title">
+                    <i class="fab fa-google"></i> Google Trends گیمینگ
+                </div>
+                <div id="googleTrends">
+                    <div class="loading-small">در حال دریافت...</div>
+                </div>
+            </div>
+
+            <!-- ترند ایران -->
+            <div class="trends-card">
+                <div class="trends-card-title">
+                    <i class="fas fa-map-marker-alt"></i> ترند ایران
+                </div>
+                <div id="iranTrends">
+                    <div class="loading-small">در حال دریافت...</div>
+                </div>
+            </div>
+
+            <!-- مقایسه ترند -->
+            <div class="trends-card trends-compare-card">
+                <div class="trends-card-title">
+                    <i class="fas fa-balance-scale"></i> مقایسه ترند
+                </div>
+                <div class="compare-inputs">
+                    <input type="text" id="compareKw1" placeholder="مثلاً: PlayStation" value="PlayStation">
+                    <span>vs</span>
+                    <input type="text" id="compareKw2" placeholder="مثلاً: Xbox" value="Xbox">
+                    <button onclick="doCompare()" class="compare-btn">مقایسه</button>
+                </div>
+                <div id="compareResult"></div>
+            </div>
+
+            <!-- ترند بر اساس پلتفرم -->
+            <div class="trends-card trends-platform-card">
+                <div class="trends-card-title">
+                    <i class="fas fa-gamepad"></i> ترند هر پلتفرم
+                </div>
+                <div id="platformTrends"></div>
+            </div>
+
+            <!-- کلمات مرتبط -->
+            <div class="trends-card">
+                <div class="trends-card-title">
+                    <i class="fas fa-search"></i> سرچ‌های مرتبط گوگل
+                </div>
+                <div id="relatedQueries">
+                    <div class="loading-small">در حال دریافت...</div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- منابع (پنهان) -->
+    <section id="sourcesSection" style="display:none;">
+        <div class="sources-header">
+            <h2 class="sources-title">📡 مدیریت منابع</h2>
+            <button class="add-source-btn" onclick="openAddSourceModal()">
+                <i class="fas fa-plus"></i> منبع جدید
+            </button>
+        </div>
+
+        <!-- خلاصه وضعیت -->
+        <div class="sources-summary" id="sourcesSummary"></div>
+
+        <!-- فیلتر منابع -->
+        <div class="sources-filter">
+            <button class="source-filter-btn active" data-filter="all">همه</button>
+            <button class="source-filter-btn" data-filter="active">✅ فعال و پرخبر</button>
+            <button class="source-filter-btn" data-filter="empty">⚠️ بدون خبر</button>
+            <button class="source-filter-btn" data-filter="inactive">❌ غیرفعال</button>
+        </div>
+
+        <div class="sources-grid" id="sourcesGrid"></div>
+    </section>
+
+    <!-- تنظیمات (پنهان) -->
+    <section id="settingsSection" style="display:none;">
+        <div class="settings-grid">
+
+            <!-- تنظیمات والپیپر -->
+            <div class="settings-card">
+                <div class="settings-card-title">
+                    <i class="fas fa-image"></i> والپیپر متحرک
+                </div>
+
+                <div class="wallpaper-upload-area" id="wallpaperUploadArea">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>عکس‌ها رو اینجا بکش و رها کن</p>
+                    <p class="upload-hint">یا</p>
+                    <label class="upload-btn">
+                        <i class="fas fa-plus"></i> انتخاب عکس
+                        <input type="file" id="wallpaperInput" accept="image/*" multiple style="display:none;">
+                    </label>
+                    <p class="upload-hint">JPG, PNG, WebP پشتیبانی میشه</p>
+                </div>
+
+                <div class="wallpaper-settings">
+                    <div class="setting-row">
+                        <label>سرعت تغییر</label>
+                        <select id="wallpaperSpeed">
+                            <option value="3000">۳ ثانیه</option>
+                            <option value="5000" selected>۵ ثانیه</option>
+                            <option value="10000">۱۰ ثانیه</option>
+                            <option value="15000">۱۵ ثانیه</option>
+                            <option value="30000">۳۰ ثانیه</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label>نوع ترنزیشن</label>
+                        <select id="wallpaperTransition">
+                            <option value="fade" selected>محو شدن</option>
+                            <option value="slide">اسلاید</option>
+                            <option value="zoom">زوم</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label>میزان تاری</label>
+                        <input type="range" id="wallpaperBlur" min="0" max="20" value="5">
+                        <span id="blurValue">5px</span>
+                    </div>
+                    <div class="setting-row">
+                        <label>تاریکی پس‌زمینه</label>
+                        <input type="range" id="wallpaperDarkness" min="0" max="90" value="60">
+                        <span id="darknessValue">60%</span>
+                    </div>
+                    <button onclick="saveWallpaperSettings()" class="save-settings-btn">
+                        <i class="fas fa-save"></i> ذخیره تنظیمات
+                    </button>
+                </div>
+
+                <div class="wallpaper-list" id="wallpaperList"></div>
+            </div>
+
+        </div>
+    </section>
+
+</div>
+
+<!-- ──────── مودال تگ ──────── -->
+<div class="modal-overlay" id="tagModal">
+    <div class="modal-content">
+        <h3>🏷️ برچسب‌گذاری</h3>
+        <div class="tag-options">
+            <button class="tag-btn" data-tag="باید بنویسم">✍️ باید بنویسم</button>
+            <button class="tag-btn" data-tag="ایده دارم">💡 ایده دارم</button>
+            <button class="tag-btn" data-tag="فوری">🔥 فوری</button>
+            <button class="tag-btn" data-tag="سناریو">🎬 سناریو</button>
+            <button class="tag-btn" data-tag="تحلیل">📊 تحلیل</button>
+            <button class="tag-btn" data-tag="">❌ حذف</button>
+        </div>
+        <button class="modal-close" id="closeTagModal">بستن</button>
+    </div>
+</div>
+
+<!-- ──────── مودال منبع ──────── -->
+<div class="modal-overlay" id="sourceModal">
+    <div class="modal-content">
+        <h3 id="sourceModalTitle">➕ منبع جدید</h3>
+        <div class="source-form">
+            <input type="hidden" id="sourceId">
+            <div class="form-group">
+                <label>نام منبع</label>
+                <input type="text" id="sourceName" placeholder="مثلاً: IGN">
+            </div>
+            <div class="form-group">
+                <label>آدرس RSS</label>
+                <input type="text" id="sourceUrl" placeholder="https://...">
+            </div>
+            <div class="form-group">
+                <label>پلتفرم</label>
+                <select id="sourcePlatform">
+                    <option value="General">🌐 عمومی</option>
+                    <option value="PlayStation">🎮 PlayStation</option>
+                    <option value="Xbox">🟩 Xbox</option>
+                    <option value="Nintendo">🔴 Nintendo</option>
+                    <option value="PC">🖥️ PC</option>
+                    <option value="Mobile">📱 Mobile</option>
+                </select>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button onclick="saveSource()" class="save-btn">
+                <i class="fas fa-save"></i> ذخیره
+            </button>
+            <button class="modal-close" id="closeSourceModal">انصراف</button>
+        </div>
+    </div>
+</div>
+
+<!-- ──────── پاپ‌آپ فوری ──────── -->
+<div class="urgent-popup" id="urgentPopup" style="display:none;">
+    <div class="urgent-popup-header">
+        <span>🔴 خبر فوری!</span>
+        <button onclick="closeUrgentPopup()">✕</button>
+    </div>
+    <div class="urgent-popup-body" id="urgentPopupBody"></div>
+    <div class="urgent-popup-footer">
+        <button onclick="refreshAndDismiss()" class="urgent-popup-btn">مشاهده همه</button>
+    </div>
+</div>
+
+<!-- ──────── نوتیفیکیشن ──────── -->
+<div class="notification" id="notification">
+    <span id="notifText"></span>
+</div>
+
+{% endblock %}

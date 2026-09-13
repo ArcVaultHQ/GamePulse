@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GamePulse — داشبورد هوشمند گیمینگ</title>
+    <link href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/Vazirmatn-font-face.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- ──────── والپیپر متحرک ──────── -->
+<div class="wallpaper-container" id="wallpaperContainer">
+    <div class="wallpaper-slide active" id="wallSlide0"></div>
+    <div class="wallpaper-slide" id="wallSlide1"></div>
+    <div class="wallpaper-overlay"></div>
+</div>
+
+<!-- ──────── سایدبار ──────── -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="logo">
+            <span class="logo-icon">🎮</span>
+            <span class="logo-text">GamePulse</span>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-section="dashboard">
+            <i class="fas fa-th-large"></i>
+            <span>داشبورد</span>
+        </a>
+        <a href="#" class="nav-item" data-section="news">
+            <i class="fas fa-newspaper"></i>
+            <span>رادار خبری</span>
+        </a>
+        <a href="#" class="nav-item" data-section="trends">
+            <i class="fas fa-chart-line"></i>
+            <span>ترندز</span>
+        </a>
+        <a href="#" class="nav-item" data-section="bookmarks">
+            <i class="fas fa-bookmark"></i>
+            <span>ذخیره‌شده‌ها</span>
+        </a>
+        <a href="#" class="nav-item" data-section="trailers">
+            <i class="fas fa-film"></i>
+            <span>تریلرها</span>
+        </a>
+        <a href="#" class="nav-item" data-section="sources">
+            <i class="fas fa-satellite-dish"></i>
+            <span>منابع</span>
+        </a>
+        <a href="#" class="nav-item" data-section="settings">
+            <i class="fas fa-cog"></i>
+            <span>تنظیمات</span>
+        </a>
+    </nav>
+
+    <div class="sidebar-footer">
+        <button class="refresh-btn" id="refreshBtn">
+            <i class="fas fa-sync-alt"></i>
+            <span>بروزرسانی</span>
+        </button>
+    </div>
+</aside>
+
+<!-- ──────── محتوای اصلی ──────── -->
+<main class="main-content" id="mainContent">
+    {% block content %}{% endblock %}
+</main>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

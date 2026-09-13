@@ -1,5 +1,6 @@
 # ──────────────────────────────────────────────
 # GamePulse — Main Application (فاز ۳)
+# معماری: On-Demand (بدون background thread)
 # ──────────────────────────────────────────────
 
 from flask import Flask, render_template, jsonify, request
@@ -13,7 +14,7 @@ import os
 import json
 from datetime import datetime, timedelta
 from deep_translator import GoogleTranslator
-from pytrends.request import TrendReq
+from trendspy import Trends
 from feeds import GAMING_FEEDS, PLATFORM_KEYWORDS, VIDEO_KEYWORDS, CONTENT_TYPE_KEYWORDS
 
 app = Flask(__name__)
@@ -25,6 +26,15 @@ new_articles_count = 0
 last_urgent_articles = []
 trends_cache = {}
 trends_last_update = None
+
+# ──────── متغیرهای زمان‌بندی on-demand ────────
+_last_feed_fetch   = 0
+_last_translation  = 0
+_last_trends_fetch = 0
+
+FEED_INTERVAL      = 120    # هر ۲ دقیقه
+TRANSLATE_INTERVAL = 30     # هر ۳۰ ثانیه
+TRENDS_INTERVAL    = 7200   # هر ۲ ساعت
 
 GAME_NAMES = [
     "GTA VI", "GTA 6", "Grand Theft Auto", "Elden Ring", "Bloodborne",
@@ -295,27 +305,32 @@ def translate_to_persian(text, article_hash):
         return ""
 
 def translate_articles_background():
-    while True:
-        try:
-            conn = get_db()
-            articles = conn.execute(
-                "SELECT id, hash, summary FROM articles WHERE summary_fa = '' AND summary != '' LIMIT 10"
-            ).fetchall()
-            conn.close()
-            for article in articles:
-                translated = translate_to_persian(article['summary'], article['hash'])
-                if translated:
-                    conn = get_db()
-                    conn.execute(
-                        "UPDATE articles SET summary_fa = ? WHERE id = ?",
-                        (translated, article['id'])
-                    )
-                    conn.commit()
-                    conn.close()
-                time.sleep(1)
-        except Exception as e:
-            print(f"[TRANSLATE ERROR] {e}")
-        time.sleep(30)
+    """
+    ترجمه ۱۰ مقاله که هنوز ترجمه نشدن.
+    بدون حلقه — هر بار که maybe_update صداش میزنه یه‌بار اجرا میشه.
+    """
+    try:
+        conn = get_db()
+        articles = conn.execute(
+            "SELECT id, hash, summary FROM articles "
+            "WHERE summary_fa = '' AND summary != '' LIMIT 10"
+        ).fetchall()
+        conn.close()
+
+        for article in articles:
+            translated = translate_to_persian(article['summary'], article['hash'])
+            if translated:
+                conn = get_db()
+                conn.execute(
+                    "UPDATE articles SET summary_fa = ? WHERE id = ?",
+                    (translated, article['id'])
+                )
+                conn.commit()
+                conn.close()
+            time.sleep(1)
+
+    except Exception as e:
+        print(f"[TRANSLATE ERROR] {e}")
 
 # ──────────── Google Trends ────────────
 
@@ -323,56 +338,53 @@ def fetch_google_trends():
     global trends_cache, trends_last_update
     try:
         print("[TRENDS] در حال دریافت Google Trends...")
-        time.sleep(10)
-        pytrends = TrendReq(hl='en-US', tz=210, retries=2, backoff_factor=1)
+        tr = Trends()
 
-        gaming_keywords = [
-            'gaming', 'video games', 'PlayStation', 'Xbox', 'Nintendo'
-        ]
-
-        pytrends.build_payload(
-            gaming_keywords[:5],
-            cat=0,
-            timeframe='now 1-d',
-            geo='',
-            gprop='',
-        )
-        interest_df = pytrends.interest_over_time()
-
+        # ── ترندهای جهانی ──
         trend_data = {}
-        if not interest_df.empty:
-            for col in interest_df.columns:
-                if col != 'isPartial':
-                    trend_data[col] = int(interest_df[col].mean())
-
-        # ترند ایران
-        pytrends_ir = TrendReq(hl='fa', tz=210)
-        gaming_fa = ['بازی', 'گیمینگ', 'پلی استیشن']
-        pytrends_ir.build_payload(
-            gaming_fa[:3],
-            cat=0,
-            timeframe='now 1-d',
-            geo='IR',
-            gprop='',
-        )
-        interest_ir = pytrends_ir.interest_over_time()
-        iran_trends = {}
-        if not interest_ir.empty:
-            for col in interest_ir.columns:
-                if col != 'isPartial':
-                    iran_trends[col] = int(interest_ir[col].mean())
-
-        # Related queries
-        related = {}
         try:
-            pytrends2 = TrendReq(hl='en-US', tz=210)
-            pytrends2.build_payload(['gaming'], timeframe='now 1-d')
-            related_queries = pytrends2.related_queries()
-            if 'gaming' in related_queries and related_queries['gaming']['top'] is not None:
-                top_queries = related_queries['gaming']['top'].head(10)
-                related = top_queries.to_dict('records')
-        except:
-            pass
+            gaming_keywords = ['gaming', 'video games', 'PlayStation', 'Xbox', 'Nintendo']
+            interest = tr.interest_over_time(
+                gaming_keywords,
+                timeframe='now 1-d'
+            )
+            if not interest.empty:
+                for col in interest.columns:
+                    if col != 'isPartial':
+                        trend_data[col] = int(interest[col].mean())
+        except Exception as e:
+            print(f"[TRENDS] خطا در ترند جهانی: {e}")
+
+        # ── ترند ایران ──
+        iran_trends = {}
+        try:
+            gaming_fa = ['بازی', 'گیمینگ', 'پلی استیشن']
+            interest_ir = tr.interest_over_time(
+                gaming_fa,
+                timeframe='now 1-d',
+                geo='IR'
+            )
+            if not interest_ir.empty:
+                for col in interest_ir.columns:
+                    if col != 'isPartial':
+                        iran_trends[col] = int(interest_ir[col].mean())
+        except Exception as e:
+            print(f"[TRENDS] خطا در ترند ایران: {e}")
+
+        # ── Related queries ──
+        related = []
+        try:
+            related_queries = tr.related_queries(
+                'gaming',
+                timeframe='now 1-d',
+                headers={'referer': 'https://www.google.com/'}
+            )
+            if related_queries and 'top' in related_queries:
+                top_df = related_queries['top']
+                if top_df is not None and not top_df.empty:
+                    related = top_df.head(10).to_dict('records')
+        except Exception as e:
+            print(f"[TRENDS] خطا در related queries: {e}")
 
         trends_cache = {
             'global': trend_data,
@@ -385,14 +397,6 @@ def fetch_google_trends():
 
     except Exception as e:
         print(f"[TRENDS ERROR] {e}")
-
-def trends_updater():
-    while True:
-        try:
-            fetch_google_trends()
-        except Exception as e:
-            print(f"[TRENDS BG ERROR] {e}")
-        time.sleep(7200)  # هر ۲ ساعت
 
 # ──────────── دریافت فیدها ────────────
 
@@ -498,13 +502,40 @@ def fetch_all_feeds():
 
     print(f"[DONE] مجموع: {total_new}\n")
 
-def background_updater():
-    while True:
+# ──────────── on-demand manager ────────────
+
+def maybe_update():
+    """
+    جایگزین همه background thread‌ها.
+    هر endpoint که لازمه این رو صدا میزنه.
+    اگه وقتش رسیده باشه آپدیت میکنه — وگرنه هیچ‌کاری نمیکنه.
+    """
+    global _last_feed_fetch, _last_translation, _last_trends_fetch
+    now = time.time()
+
+    # آپدیت فیدها — هر ۲ دقیقه
+    if now - _last_feed_fetch >= FEED_INTERVAL:
         try:
             fetch_all_feeds()
+            _last_feed_fetch = now
         except Exception as e:
-            print(f"[BG ERROR] {e}")
-        time.sleep(120)
+            print(f"[maybe_update] خطا در fetch فیدها: {e}")
+
+    # ترجمه — هر ۳۰ ثانیه
+    if now - _last_translation >= TRANSLATE_INTERVAL:
+        try:
+            translate_articles_background()
+            _last_translation = now
+        except Exception as e:
+            print(f"[maybe_update] خطا در ترجمه: {e}")
+
+    # Google Trends — هر ۲ ساعت
+    if now - _last_trends_fetch >= TRENDS_INTERVAL:
+        try:
+            fetch_google_trends()
+            _last_trends_fetch = now
+        except Exception as e:
+            print(f"[maybe_update] خطا در Google Trends: {e}")
 
 # ──────────── روت‌های اصلی ────────────
 
@@ -514,6 +545,7 @@ def dashboard():
 
 @app.route('/api/live-status')
 def api_live_status():
+    maybe_update()
     return jsonify({
         'last_update': last_update_time,
         'new_count': new_articles_count,
@@ -523,6 +555,8 @@ def api_live_status():
 
 @app.route('/api/news')
 def api_news():
+    maybe_update()
+
     platform = request.args.get('platform', 'all')
     content_type = request.args.get('type', 'all')
     time_filter = request.args.get('time', '24h')
@@ -612,6 +646,7 @@ def api_trending_games():
 
 @app.route('/api/trends')
 def api_trends():
+    maybe_update()
     return jsonify(trends_cache if trends_cache else {
         'global': {},
         'iran': {},
@@ -625,9 +660,8 @@ def api_trends_compare():
     kw1 = request.args.get('kw1', 'PlayStation')
     kw2 = request.args.get('kw2', 'Xbox')
     try:
-        pytrends = TrendReq(hl='en-US', tz=210)
-        pytrends.build_payload([kw1, kw2], timeframe='now 7-d')
-        df = pytrends.interest_over_time()
+        tr = Trends()
+        df = tr.interest_over_time([kw1, kw2], timeframe='now 7-d')
         if df.empty:
             return jsonify({'error': 'داده‌ای یافت نشد'})
 
@@ -650,10 +684,7 @@ def api_trends_compare():
 
 @app.route('/api/trends/internal')
 def api_trends_internal():
-    """ترندیاب داخلی — بر اساس داده‌های خودمون"""
     conn = get_db()
-
-    # پرتکرارترین کلمات توی عناوین ۲۴ ساعت گذشته
     articles = conn.execute("""
         SELECT title, source_platform FROM articles
         WHERE fetched_at > ?
@@ -801,13 +832,11 @@ def edit_source():
 
     if not source_id:
         return jsonify({'success': False, 'error': 'ID ارسال نشده'})
-
     if not name or not url:
         return jsonify({'success': False, 'error': 'نام و آدرس RSS الزامیست'})
 
     try:
         conn = get_db()
-
         cur = conn.execute("""
             UPDATE custom_sources
             SET name = ?, url = ?, platform = ?
@@ -821,7 +850,6 @@ def edit_source():
         conn.execute("DELETE FROM feed_status WHERE source = ?", (name,))
         conn.commit()
         conn.close()
-
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
@@ -914,9 +942,13 @@ def api_stats():
 
 @app.route('/api/refresh', methods=['POST'])
 def manual_refresh():
-    thread = threading.Thread(target=fetch_all_feeds)
-    thread.start()
-    return jsonify({'success': True})
+    global _last_feed_fetch
+    try:
+        fetch_all_feeds()
+        _last_feed_fetch = time.time()
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/feed-status')
 def feed_status():
@@ -930,26 +962,24 @@ def feed_status():
 # ──────────── اجرا ────────────
 
 if __name__ == '__main__':
+    os.makedirs("database", exist_ok=True)
     init_db()
-    print("\n🎮 GamePulse — فاز ۳ در حال راه‌اندازی...")
-    print("⚡ لایو ترک: هر ۲ دقیقه")
-    print("📈 Google Trends: هر ۱ ساعت")
-    print("📡 شروع دریافت فیدها...\n")
 
-    fetch_thread = threading.Thread(target=fetch_all_feeds, daemon=True)
-    fetch_thread.start()
+    print("\n🎮 GamePulse — فاز ۳ (on-demand) در حال راه‌اندازی...")
+    print("📡 دریافت اولیه فیدها...")
 
-    updater_thread = threading.Thread(target=background_updater, daemon=True)
-    updater_thread.start()
+    try:
+        fetch_all_feeds()
+        _last_feed_fetch = time.time()
+    except Exception as e:
+        print(f"[startup] خطا در فیدها: {e}")
 
-    translate_thread = threading.Thread(target=translate_articles_background, daemon=True)
-    translate_thread.start()
-
-    trends_thread = threading.Thread(target=fetch_google_trends, daemon=True)
-    trends_thread.start()
-
-    trends_bg_thread = threading.Thread(target=trends_updater, daemon=True)
-    trends_bg_thread.start()
+    print("📈 دریافت اولیه Google Trends...")
+    try:
+        fetch_google_trends()
+        _last_trends_fetch = time.time()
+    except Exception as e:
+        print(f"[startup] خطا در Trends: {e}")
 
     print("🌐 داشبورد: http://127.0.0.1:5000\n")
     app.run(debug=False, host='0.0.0.0', port=5000)

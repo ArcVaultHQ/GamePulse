@@ -1,5 +1,5 @@
 // ══════════════════════════════════════════════
-// GamePulse — Frontend (فاز ۳)
+// GamePulse — Frontend (فاز ۳ — بهبودیافته)
 // ══════════════════════════════════════════════
 
 // ──────── State ────────
@@ -13,6 +13,7 @@ let currentSection = 'dashboard';
 let tagArticleId = null;
 let lastKnownUpdate = null;
 let editingSourceId = null;
+let isSearchActive = false;
 
 // والپیپر
 let wallpapers = [];
@@ -77,6 +78,11 @@ function updateLiveTimer(data) {
         return;
     }
 
+    if (data.feed_running) {
+        timerEl.textContent = '🔄 در حال آپدیت...';
+        return;
+    }
+
     const secondsAgo = Math.floor((new Date() - new Date(data.last_update)) / 1000);
     const nextIn = Math.max(0, 120 - secondsAgo);
 
@@ -87,7 +93,7 @@ function updateLiveTimer(data) {
             ? `آپدیت: ${m}:${s.toString().padStart(2,'0')}`
             : `آپدیت: ${s}ث`;
     } else {
-        timerEl.textContent = 'در حال آپدیت...';
+        timerEl.textContent = '🔄 در حال آپدیت...';
     }
 }
 
@@ -104,13 +110,11 @@ function checkForNewArticles(data) {
         loadTrendingGames();
         loadUrgentNews();
 
-        // ✅ اگر کاربر داخل داشبورد یا رادار خبری است، خودکار رفرش کن
         if (currentSection === 'dashboard' || currentSection === 'news') {
             currentPage = 1;
             loadNews(false);
             showNotification(`⚡ ${data.new_count} خبر جدید بارگذاری شد!`);
         } else {
-            // در بقیه بخش‌ها فقط نوار بنفش نمایش داده شود
             const bar = document.getElementById('newArticlesBar');
             const text = document.getElementById('newArticlesText');
             if (bar && text) {
@@ -158,6 +162,96 @@ function closeUrgentPopup() {
 }
 
 // ══════════════════════════════════════════════
+// 🔄 دکمه بازگشت به همه اخبار
+// ══════════════════════════════════════════════
+
+function resetAllFilters() {
+    currentSearch = '';
+    currentPlatform = 'all';
+    currentType = 'all';
+    currentUrgency = 'all';
+    currentTime = '24h';
+    currentPage = 1;
+    isSearchActive = false;
+
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.value = '';
+
+    document.querySelectorAll('.platform-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.platform === 'all');
+    });
+    document.querySelectorAll('.time-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.time === '24h');
+    });
+    document.querySelectorAll('.type-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.type === 'all');
+    });
+    document.querySelectorAll('.urgency-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.urgency === 'all');
+    });
+
+    hideBackButton();
+    loadNews();
+    showNotification('🏠 بازگشت به همه اخبار');
+}
+
+function showBackButton(searchText) {
+    isSearchActive = true;
+    let bar = document.getElementById('searchActiveBar');
+
+    if (!bar) {
+        bar = document.createElement('div');
+        bar.id = 'searchActiveBar';
+        bar.style.cssText = `
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: linear-gradient(135deg, rgba(139,92,246,0.15), rgba(59,130,246,0.15));
+            border: 1px solid rgba(139,92,246,0.3);
+            border-radius: 12px;
+            padding: 10px 16px;
+            margin-bottom: 15px;
+            backdrop-filter: blur(10px);
+        `;
+
+        const newsGrid = document.getElementById('newsGrid');
+        if (newsGrid && newsGrid.parentNode) {
+            newsGrid.parentNode.insertBefore(bar, newsGrid);
+        }
+    }
+
+    bar.innerHTML = `
+        <span style="color:var(--text-secondary);font-size:13px;">
+            🔍 نتایج جستجو: <strong style="color:var(--accent)">${searchText}</strong>
+        </span>
+        <button onclick="resetAllFilters()" style="
+            background: linear-gradient(135deg, var(--accent), var(--secondary));
+            color: white;
+            border: none;
+            padding: 6px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-family: inherit;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+        ">
+            <i class="fas fa-arrow-right"></i>
+            بازگشت به همه اخبار
+        </button>
+    `;
+
+    bar.style.display = 'flex';
+}
+
+function hideBackButton() {
+    const bar = document.getElementById('searchActiveBar');
+    if (bar) bar.style.display = 'none';
+}
+
+// ══════════════════════════════════════════════
 // 🖼️ سیستم والپیپر متحرک
 // ══════════════════════════════════════════════
 
@@ -183,7 +277,6 @@ function loadWallpaperSettings() {
 
     applyWallpaperOverlay();
 
-    // رنج اینپوت‌ها
     const blurRange = document.getElementById('wallpaperBlur');
     const darkRange = document.getElementById('wallpaperDarkness');
 
@@ -258,7 +351,6 @@ function loadWallpapers() {
 function loadWallpaperImages() {
     if (wallpapers.length === 0) return;
 
-    // لود اولین والپیپر
     fetch(`/api/wallpapers/${wallpapers[0].id}`)
         .then(r => r.json())
         .then(data => {
@@ -321,7 +413,6 @@ function startWallpaperShow() {
                         }, 1500);
                     }, 50);
                 } else {
-                    // fade & zoom
                     nextSlideEl.classList.add('active');
                     setTimeout(() => {
                         currentSlideEl.classList.remove('active');
@@ -352,7 +443,6 @@ function renderWallpaperList() {
         </div>
     `).join('');
 
-    // لود تصاویر thumbnail
     wallpapers.forEach(wp => {
         fetch(`/api/wallpapers/${wp.id}`)
             .then(r => r.json())
@@ -465,26 +555,53 @@ function setupEventListeners() {
             searchTimeout = setTimeout(() => {
                 currentSearch = e.target.value;
                 currentPage = 1;
+                if (currentSearch) {
+                    showBackButton(currentSearch);
+                } else {
+                    hideBackButton();
+                }
                 loadNews();
             }, 500);
         });
     }
 
+    // ──── دکمه بروزرسانی — سریع ────
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn) {
         refreshBtn.addEventListener('click', () => {
+            if (refreshBtn.classList.contains('spinning')) return;
             refreshBtn.classList.add('spinning');
+            showNotification('📡 در حال بروزرسانی...');
+
             fetch('/api/refresh', { method: 'POST' })
+                .then(r => r.json())
                 .then(() => {
-                    showNotification('📡 در حال بروزرسانی...');
-                    setTimeout(() => {
-                        refreshBtn.classList.remove('spinning');
-                        loadStats();
-                        loadNews();
-                        loadUrgentNews();
-                        loadTrendingGames();
-                        showNotification('✅ بروزرسانی کامل شد!');
-                    }, 12000);
+                    // هر ۲ ثانیه چک کن تا آپدیت تموم بشه
+                    let pollCount = 0;
+                    const pollInterval = setInterval(() => {
+                        pollCount++;
+                        fetch('/api/live-status')
+                            .then(r => r.json())
+                            .then(status => {
+                                if (!status.feed_running || pollCount >= 60) {
+                                    clearInterval(pollInterval);
+                                    refreshBtn.classList.remove('spinning');
+                                    loadStats();
+                                    loadNews();
+                                    loadUrgentNews();
+                                    loadTrendingGames();
+                                    showNotification('✅ بروزرسانی کامل شد!');
+                                }
+                            })
+                            .catch(() => {
+                                clearInterval(pollInterval);
+                                refreshBtn.classList.remove('spinning');
+                            });
+                    }, 2000);
+                })
+                .catch(() => {
+                    refreshBtn.classList.remove('spinning');
+                    showNotification('⚠️ خطا در بروزرسانی');
                 });
         });
     }
@@ -521,6 +638,10 @@ function setupEventListeners() {
             item.classList.add('active');
             currentSection = item.dataset.section;
             currentPage = 1;
+            // ریست فیلترها وقتی بخش عوض میشه
+            if (currentSection === 'dashboard' || currentSection === 'news') {
+                hideBackButton();
+            }
             handleSection();
         });
     });
@@ -531,7 +652,6 @@ function setupEventListeners() {
         });
     });
 
-    // والپیپر آپلود
     const wallpaperInput = document.getElementById('wallpaperInput');
     if (wallpaperInput) {
         wallpaperInput.addEventListener('change', (e) => {
@@ -539,7 +659,6 @@ function setupEventListeners() {
         });
     }
 
-    // Drag & Drop
     const uploadArea = document.getElementById('wallpaperUploadArea');
     if (uploadArea) {
         uploadArea.addEventListener('dragover', (e) => {
@@ -556,7 +675,6 @@ function setupEventListeners() {
         });
     }
 
-    // فیلتر منابع
     document.querySelectorAll('.source-filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.source-filter-btn').forEach(b => b.classList.remove('active'));
@@ -577,7 +695,6 @@ function handleSection() {
     const trendingSection = document.getElementById('trendingSection');
     const urgentBar = document.getElementById('urgentBar');
 
-    // پنهان کردن همه
     [newsGrid, loadMoreWrapper, sourcesSection, trendsSection, settingsSection].forEach(el => {
         if (el) el.style.display = 'none';
     });
@@ -743,7 +860,6 @@ function loadInternalTrends() {
                 </p>
             `;
 
-            // ترند پلتفرم
             const platformEl = document.getElementById('platformTrends');
             if (platformEl && data.platform_trends) {
                 platformEl.innerHTML = `
@@ -777,7 +893,6 @@ function loadGoogleTrends() {
     fetch('/api/trends')
         .then(r => r.json())
         .then(data => {
-            // Google Trends جهانی
             if (googleEl) {
                 if (!data.global || Object.keys(data.global).length === 0) {
                     googleEl.innerHTML = '<p class="loading-small">در حال دریافت از Google Trends...</p>';
@@ -800,7 +915,6 @@ function loadGoogleTrends() {
                 }
             }
 
-            // ترند ایران
             if (iranEl) {
                 if (!data.iran || Object.keys(data.iran).length === 0) {
                     iranEl.innerHTML = '<p class="loading-small">در حال دریافت ترند ایران...</p>';
@@ -818,7 +932,6 @@ function loadGoogleTrends() {
                 }
             }
 
-            // سرچ‌های مرتبط
             if (relatedEl) {
                 if (!data.related || data.related.length === 0) {
                     relatedEl.innerHTML = '<p class="loading-small">در حال دریافت...</p>';
@@ -897,7 +1010,6 @@ function loadSources() {
     fetch('/api/sources')
         .then(r => r.json())
         .then(data => {
-            // خلاصه وضعیت
             const activeWithArticles = data.filter(s => s.is_active && s.article_count > 0).length;
             const activeEmpty = data.filter(s => s.is_active && (!s.article_count || s.article_count === 0)).length;
             const inactive = data.filter(s => !s.is_active).length;
@@ -924,7 +1036,6 @@ function loadSources() {
                 `;
             }
 
-            // ذخیره داده برای فیلتر
             grid.dataset.allSources = JSON.stringify(data);
             renderSourceCards(data);
         });
@@ -960,8 +1071,8 @@ function renderSourceCards(sources) {
     grid.innerHTML = sources.map(source => {
         const hasArticles = source.article_count > 0;
         const isActive = source.is_active;
-        const statusClass = !isActive ? 'inactive' : hasArticles ? 'active' : 'empty';
         const cardClass = !isActive ? 'inactive' : !hasArticles ? 'no-articles' : '';
+        const statusClass = !isActive ? 'inactive' : hasArticles ? 'active' : 'empty';
 
         return `
             <div class="source-card ${cardClass}">
@@ -1136,6 +1247,7 @@ function searchGame(gameName) {
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     document.querySelector('[data-section="news"]')?.classList.add('active');
     currentSection = 'news';
+    showBackButton(gameName);
     handleSection();
 }
 
@@ -1187,11 +1299,20 @@ function createNewsCard(article) {
     };
     const sourceColor = sourcePlatformColors[article.source_platform] || 'var(--accent)';
 
+    // ──── نمایش تعداد منابع تکراری ────
+    let duplicateBadge = '';
+    if (article.duplicate_count > 1) {
+        const sourceList = article.related_sources || '';
+        const tooltip = sourceList.replace(/,/g, '، ');
+        duplicateBadge = `<span class="duplicate-badge" title="${tooltip}">🔥 ${article.duplicate_count} منبع</span>`;
+    }
+
     card.innerHTML = `
         ${imageHtml}
         <div class="news-card-body">
             <div class="news-card-meta">
                 ${urgencyBadge}
+                ${duplicateBadge}
                 <span class="source-badge" style="background:${sourceColor}">${article.source}</span>
                 ${platformBadges}
                 <span class="type-badge">${typeLabels[article.content_type] || '📰 خبر'}</span>

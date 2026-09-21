@@ -806,10 +806,11 @@ def maybe_update():
         _translate_started = now
         threading.Thread(target=_run_translate, daemon=True).start()
 
-    if now - _last_trends_fetch >= TRENDS_INTERVAL and not _trends_running:
-        _trends_running = True
-        _trends_started = now
-        threading.Thread(target=_run_trends, daemon=True).start()
+    # موقتاً غیرفعال — مصرف رم زیاد
+    # if now - _last_trends_fetch >= TRENDS_INTERVAL and not _trends_running:
+    #     _trends_running = True
+    #     _trends_started = now
+    #     threading.Thread(target=_run_trends, daemon=True).start()
 
 # ──────────── روت‌های اصلی ────────────
 

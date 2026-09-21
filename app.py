@@ -14,7 +14,6 @@ import re
 import os
 from datetime import datetime, timedelta
 from deep_translator import GoogleTranslator
-from trendspy import Trends
 from feeds import GAMING_FEEDS, PLATFORM_KEYWORDS, VIDEO_KEYWORDS, CONTENT_TYPE_KEYWORDS
 
 app = Flask(__name__)
@@ -511,8 +510,8 @@ def translate_articles_background():
 def fetch_google_trends():
     global trends_cache, trends_last_update
     try:
+        from trendspy import Trends  # ← اینجا import میشه نه موقع شروع
         print("[TRENDS] در حال دریافت Google Trends...")
-        # request_delay=2.0 برای جلوگیری از خطای 429
         tr = Trends(request_delay=2.0)
 
         trend_data = {}
@@ -905,6 +904,7 @@ def api_trends():
 
 @app.route('/api/trends/compare')
 def api_trends_compare():
+    from trendspy import Trends  # ← lazy import
     kw1 = request.args.get('kw1', 'PlayStation')
     kw2 = request.args.get('kw2', 'Xbox')
     try:
@@ -1162,20 +1162,6 @@ def feed_status():
 # ──────────── اجرا ────────────
 
 if __name__ == '__main__':
-    print("\n🎮 GamePulse — فاز ۳ (category-aware) در حال راه‌اندازی...")
-    print("📡 دریافت اولیه فیدها...")
-    try:
-        fetch_all_feeds()
-        _last_feed_fetch = time.time()
-    except Exception as e:
-        print(f"[startup] فیدها: {e}")
-
-    print("📈 دریافت Google Trends...")
-    try:
-        fetch_google_trends()
-        _last_trends_fetch = time.time()
-    except Exception as e:
-        print(f"[startup] Trends: {e}")
-
+    print("\n🎮 GamePulse — فاز ۳ در حال راه‌اندازی...")
     print("🌐 داشبورد: http://127.0.0.1:5000\n")
     app.run(debug=False, host='0.0.0.0', port=5000)

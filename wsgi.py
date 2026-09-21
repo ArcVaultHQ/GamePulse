@@ -1,14 +1,19 @@
 import os
 import sys
 
-# مطمئن شو پوشه database وجود داره
 os.makedirs("database", exist_ok=True)
 
 try:
     from app import app
-    print("✅ app imported successfully")
+    print("✅ app imported successfully", flush=True)
+except MemoryError:
+    print("❌ MemoryError: RAM کافی نیست", flush=True)
+    sys.exit(1)
+except ImportError as e:
+    print(f"❌ ImportError: {e}", flush=True)
+    sys.exit(1)
 except Exception as e:
-    print(f"❌ Error importing app: {e}")
+    print(f"❌ Startup Error: {type(e).__name__}: {e}", flush=True)
     import traceback
     traceback.print_exc()
     sys.exit(1)

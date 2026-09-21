@@ -638,10 +638,30 @@ function setupEventListeners() {
             item.classList.add('active');
             currentSection = item.dataset.section;
             currentPage = 1;
-            // ریست فیلترها وقتی بخش عوض میشه
+
             if (currentSection === 'dashboard' || currentSection === 'news') {
+                // ریست کامل همه فیلترها
+                currentSearch = '';
+                currentPlatform = 'all';
+                currentType = 'all';
+                currentUrgency = 'all';
+                currentTime = '24h';
+
+                const si = document.getElementById('searchInput');
+                if (si) si.value = '';
+
+                document.querySelectorAll('.platform-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.platform === 'all'));
+                document.querySelectorAll('.time-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.time === '24h'));
+                document.querySelectorAll('.type-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.type === 'all'));
+                document.querySelectorAll('.urgency-btn').forEach(b =>
+                    b.classList.toggle('active', b.dataset.urgency === 'all'));
+
                 hideBackButton();
             }
+
             handleSection();
         });
     });
@@ -1352,7 +1372,15 @@ function getPlatformIcon(platform) {
 
 function timeAgo(dateString) {
     if (!dateString) return '';
+
+    // اگر تاریخ timezone نداشت، آن را UTC فرض کن
+    // (isoformat در پایتون معمولاً بدون Z ذخیره می‌شود)
+    if (!dateString.includes('Z') && !dateString.includes('+')) {
+        dateString = dateString + 'Z';
+    }
+
     const diff = Math.floor((new Date() - new Date(dateString)) / 1000);
+
     if (diff < 60) return 'همین الان';
     if (diff < 3600) return `${Math.floor(diff / 60)} دقیقه پیش`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} ساعت پیش`;

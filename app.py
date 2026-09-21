@@ -4,8 +4,6 @@
 # ──────────────────────────────────────────────
 
 from flask import Flask, render_template, jsonify, request
-import feedparser
-import requests as req
 import sqlite3
 import hashlib
 import threading
@@ -13,8 +11,30 @@ import time
 import re
 import os
 from datetime import datetime, timedelta
-from deep_translator import GoogleTranslator
 from feeds import GAMING_FEEDS, PLATFORM_KEYWORDS, VIDEO_KEYWORDS, CONTENT_TYPE_KEYWORDS
+
+# سنگین‌ها lazy load میشن
+feedparser = None
+req = None
+GoogleTranslator = None
+
+def _import_feedparser():
+    global feedparser
+    if feedparser is None:
+        import feedparser as _fp
+        feedparser = _fp
+
+def _import_requests():
+    global req
+    if req is None:
+        import requests as _req
+        req = _req
+
+def _import_translator():
+    global GoogleTranslator
+    if GoogleTranslator is None:
+        from deep_translator import GoogleTranslator as _gt
+        GoogleTranslator = _gt
 
 app = Flask(__name__)
 DB_PATH = os.path.join("database", "gamepulse.db")
@@ -458,6 +478,7 @@ def deduplicate_articles():
 # ──────────── ترجمه ────────────
 
 def translate_to_persian(text, article_hash):
+    _import_translator()
     if not text or len(text) < 10:
         return ""
     try:
@@ -561,8 +582,10 @@ def fetch_google_trends():
 # ──────────── دریافت فیدها ────────────
 
 def fetch_single_feed(source_name, feed_url, platform_name, forced_category=''):
+    _import_feedparser()
+    _import_requests()
     articles = []
-    
+
     # ── تأخیر برای Reddit (جلوگیری از 429) ──
     is_reddit = 'reddit.com' in feed_url
     if is_reddit:

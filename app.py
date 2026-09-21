@@ -37,7 +37,8 @@ def _import_translator():
         GoogleTranslator = _gt
 
 app = Flask(__name__)
-DB_PATH = os.path.join("database", "gamepulse.db")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH  = os.path.join(BASE_DIR, "database", "gamepulse.db")
 
 # ──────── پروکسی ────────
 PROXY_URL = os.environ.get('PROXY_URL', '')
@@ -180,7 +181,7 @@ def get_db():
     return conn
 
 def init_db():
-    os.makedirs("database", exist_ok=True)
+    os.makedirs(os.path.join(BASE_DIR, "database"), exist_ok=True)
     conn = get_db()
 
     conn.execute("""

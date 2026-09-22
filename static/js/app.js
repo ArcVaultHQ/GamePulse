@@ -1319,7 +1319,6 @@ function createNewsCard(article) {
     };
     const sourceColor = sourcePlatformColors[article.source_platform] || 'var(--accent)';
 
-    // ──── نمایش تعداد منابع تکراری ────
     let duplicateBadge = '';
     if (article.duplicate_count > 1) {
         const sourceList = article.related_sources || '';
@@ -1345,7 +1344,7 @@ function createNewsCard(article) {
             ${summaryHtml}
             ${gameTags ? `<div class="game-tags-row">${gameTags}</div>` : ''}
             <div class="news-card-footer">
-                <span class="news-time">${timeAgo(article.fetched_at)}</span>
+                <span class="news-time">${timeAgo(article.published || article.fetched_at)}</span>
                 <div class="news-actions">
                     <button class="action-btn ${article.is_bookmarked ? 'bookmarked' : ''}"
                             onclick="toggleBookmark(${article.id})" title="ذخیره">
@@ -1373,18 +1372,22 @@ function getPlatformIcon(platform) {
 function timeAgo(dateString) {
     if (!dateString) return '';
 
-    // اگر تاریخ timezone نداشت، آن را UTC فرض کن
-    // (isoformat در پایتون معمولاً بدون Z ذخیره می‌شود)
+    // تبدیل به فرمت استاندارد برای مرورگر
     if (!dateString.includes('Z') && !dateString.includes('+')) {
         dateString = dateString + 'Z';
     }
 
-    const diff = Math.floor((new Date() - new Date(dateString)) / 1000);
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = Math.floor((now - date) / 1000);
 
+    if (isNaN(diff)) return '';
+    if (diff < 0) return 'همین الان'; // برای زمان‌هایی که ساعت سرور و فید کمی اختلاف دارن
     if (diff < 60) return 'همین الان';
     if (diff < 3600) return `${Math.floor(diff / 60)} دقیقه پیش`;
     if (diff < 86400) return `${Math.floor(diff / 3600)} ساعت پیش`;
-    return `${Math.floor(diff / 86400)} روز پیش`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)} روز پیش`;
+    return `${Math.floor(diff / 604800)} هفته پیش`;
 }
 
 function createLoadingState() {

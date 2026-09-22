@@ -586,84 +586,76 @@ def fetch_single_feed(source_name, feed_url, platform_name, forced_category=''):
     _import_feedparser()
     _import_requests()
     articles = []
+    
+    # برای حل مشکل لینک‌های ناقص (Bug 1)
+    from urllib.parse import urlparse, urljoin
+    parsed_url = urlparse(feed_url)
+    base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
 
-    # ── تأخیر برای Reddit (جلوگیری از 429) ──
-    is_reddit = 'reddit.com' in feed_url
-    if is_reddit:
+    if 'reddit.com' in feed_url:
         time.sleep(3)
 
     try:
-        headers = {'User-Agent': 'GamePulse/1.0 (Gaming News Dashboard)'}
-        try:
-            if PROXIES.get('http'):
-                response = req.get(feed_url, timeout=15, headers=headers, proxies=PROXIES)
-            else:
-                response = req.get(feed_url, timeout=15, headers=headers)
+        headers = {'User-Agent': 'GamePulse/1.0'}
+        if PROXIES.get('http'):
+            response = req.get(feed_url, timeout=15, headers=headers, proxies=PROXIES)
+        else:
+            response = req.get(feed_url, timeout=15, headers=headers)
 
-            if response.status_code == 429:
-                print(f"  ⏳ {source_name}: rate limit — رد شد")
-                return articles
-            if response.status_code != 200:
-                print(f"  ⚠️  {source_name}: HTTP {response.status_code}")
-                return articles
-
-            feed = feedparser.parse(response.content)
-
-        except req.exceptions.Timeout:
-            print(f"  ⏱️  {source_name}: timeout")
-            return articles
-        except req.exceptions.ConnectionError:
-            print(f"  🚫 {source_name}: اتصال برقرار نشد")
-            return articles
-        except req.exceptions.RequestException as e:
-            print(f"  ❌ {source_name}: {e}")
+        if response.status_code != 200:
             return articles
 
-        if not feed.entries:
-            print(f"  📭 {source_name}: فید خالی")
-            return articles
+        feed = feedparser.parse(response.content)
 
         for entry in feed.entries[:20]:
-            title        = entry.get('title', 'No Title')
-            link         = entry.get('link', '')
-            summary      = clean_summary(entry.get('summary', ''))
-            published    = entry.get('published', '')
-            image        = extract_image(entry)
-            detected     = detect_platforms(title, summary)
-            has_video    = 1 if detect_video(title, summary) else 0
-            urgency      = detect_urgency(title, summary)
-            games        = detect_games(title, summary)
-            studios      = detect_studios(title, summary)
+            title = entry.get('title', 'No Title')
+            link = entry.get('link', '')
+            
+            # --- فیکس باگ ۱: اگر لینک ناقص بود، کاملش کن ---
+            if link and not link.startswith('http'):
+                link = urljoin(base_url, link)
+
+            # --- فیکس باگ ۲: تبدیل تاریخ انتشار به فرمت استاندارد ---
+            import calendar
+            published_iso = ''
+            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                try:
+                    published_iso = datetime.utcfromtimestamp(calendar.timegm(entry.published_parsed)).isoformat() + 'Z'
+                except:
+                    published_iso = datetime.now().isoformat()
+            else:
+                published_iso = datetime.now().isoformat()
+
+            summary = clean_summary(entry.get('summary', ''))
+            image = extract_image(entry)
+            detected = detect_platforms(title, summary)
+            has_video = 1 if detect_video(title, summary) else 0
+            urgency = detect_urgency(title, summary)
+            games = detect_games(title, summary)
+            studios = detect_studios(title, summary)
             article_hash = generate_hash(title, link)
 
-            # اگه فید category داره → از اون استفاده کن
-            # اگه نداره → keyword detection
-            if forced_category:
-                content_type = forced_category
-            else:
-                content_type = detect_content_type(title, summary)
+            content_type = forced_category if forced_category else detect_content_type(title, summary)
 
             articles.append({
-                'hash'              : article_hash,
-                'title'             : title,
-                'link'              : link,
-                'summary'           : summary,
-                'source'            : source_name,
-                'source_platform'   : platform_name,
+                'hash': article_hash,
+                'title': title,
+                'link': link,
+                'summary': summary,
+                'source': source_name,
+                'source_platform': platform_name,
                 'detected_platforms': ','.join(detected),
-                'content_type'      : content_type,
-                'has_video'         : has_video,
-                'image_url'         : image,
-                'published'         : published,
-                'fetched_at'        : datetime.now().isoformat(),
-                'urgency'           : urgency,
-                'game_tags'         : ','.join(games),
-                'studio_tags'       : ','.join(studios),
+                'content_type': content_type,
+                'has_video': has_video,
+                'image_url': image,
+                'published': published_iso, # تاریخ واقعی انتشار
+                'fetched_at': datetime.now().isoformat(),
+                'urgency': urgency,
+                'game_tags': ','.join(games),
+                'studio_tags': ','.join(studios),
             })
-
     except Exception as e:
-        print(f"[ERROR] {source_name}: {e}")
-
+        print(f"Error {source_name}: {e}")
     return articles
 
 def fetch_all_feeds():
